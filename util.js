@@ -1,12 +1,23 @@
-var nativeExec      = require('child_process').exec;
-var nativeExecFile  = require('child_process').execFileSync;
+const nativeExec        = require('child_process').exec;
+const nativeExecFile    = require('child_process').execFileSync;
+const async             = require('async');
+const Path              = require('path');
+const fs                = require('fs');
+const yamljs            = require('yamljs');
+const _                 = require('lodash');
 
-module.exports = {
-    waitasec        : waitasec,
-    shellExec       : shellExec,
-    shellExecFile   : shellExecFile,
-    parsePS         : parsePS,
-}
+var util = {
+    waitasec            : waitasec,
+    shellExec           : shellExec,
+    shellExecFile       : shellExecFile,
+    parsePS             : parsePS,
+    getYAML             : getYAML,
+    yaml                : null,
+    eachSeries          : eachSeries,
+    getContainerByService : getContainerByService,
+};
+
+module.exports = util;
 
 function shellExec(cmd){
     return new Promise((resolve, reject)=>{
@@ -21,6 +32,8 @@ function shellExec(cmd){
 
             if(stderr)
                 return resolve(stderr);
+
+            resolve();
         });
     })
 }
@@ -39,6 +52,40 @@ function waitasec(t){
         setTimeout(()=>{resolve();}, t)
     })
 }
+
+function eachSeries(arr, func, breakOnError){
+    return new Promise((resolve, reject)=>{
+        var ret = [];
+        async.eachOfSeries(arr, (item, index, _next)=>{
+            function next(err, data){
+                data = data || null;
+                _next(err);
+                ret.push(data);
+            }
+
+            var P = func(item, index);
+            if(!P || !P.then)
+                P = Promise.resolve(P);
+
+            P.then((data)=>{
+                next(null, data);
+            })
+            .catch((err)=>{
+                console.log("loop error", err)
+                if(breakOnError)
+                    return next(err);
+
+                return next();
+            })
+        }, (err)=>{
+            if(err)
+                return reject(err);
+
+            resolve(ret);
+        })
+    })
+}
+
 
 function parsePS(output) {
 	if (!output) {
@@ -77,4 +124,31 @@ function parsePS(output) {
 	}
 
 	return entries;
+}
+
+function getYAML(){
+    var yamlPath = Path.join(process.cwd(), "docker-compose.yaml");
+
+    if(!fs.existsSync(yamlPath))
+        return Promise.reject("Missing YAML");
+
+    // convert YAML file to JSON
+    util.yaml = yamljs.load(yamlPath);
+    return Promise.resolve(util.yaml);
+}
+
+function getContainerByService(service){
+    if(util.yaml)
+        var P = Promise.resolve(util.yaml);
+    else
+        var P = getYAML();
+
+    return P.then(()=>{
+        var allServices = util.yaml.services;
+
+        if(!allServices || !allServices[service])
+            return Promise.reject("Service not found: " +  service);
+
+        return allServices[service]['container_name'] || service;
+    })
 }

@@ -36,9 +36,9 @@ fd ps
 
 <a name="up"><a>
 #### Command: `up`
-Simulates `docker-compose up...`
+Simulates `docker-compose up...`.  Detaches by default.
 ```
-fd up [arguments...]
+fd up -a [arguments...]
 ```
 
 

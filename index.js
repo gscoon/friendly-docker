@@ -2,10 +2,10 @@ const fs        = require('fs');
 const Path      = require('path');
 const shell     = require('shelljs');
 const inquirer  = require('inquirer');
-const YAML      = require('yamljs');
 const _         = require('lodash');
 
 var program     = require('vorpal')();
+var yaml        = null;
 
 global.Util     = require('./util.js');
 
@@ -16,30 +16,62 @@ module.exports = {
 // docker-compose up
 program
 .command('up [containers...]')
-.option('-d, --detach', 'Detach from container(s)')
+.option('-a, --attach', 'Attach to container(s)')
 .action((args, cb)=>{
     if(args.containers)
         return finish(args.containers);
 
     return promptServices()
-    .then(finish);
+    .then(finish)
+    .catch(handleError);
 
     function finish(services){
         var cmd = ["docker-compose up"];
 
-        if(args.options.detach)
+        if(!args.options.attach)
             cmd.push("-d");
 
         if(services)
             cmd.push(services.join(' '));
 
-        cmd = cmd.join(' ');
-        shell.exec(cmd);
+        shell.exec(cmd.join(' '));
     }
 
     function handleError(err){
         console.log("An error occured");
         console.log(err);
+    }
+})
+
+// docker-compose down
+program
+.command('down [containers...]')
+.action((args, cb)=>{
+    if(args.containers)
+        return finish(args.containers);
+
+    return promptServices()
+    .then(finish)
+    .catch(handleError);
+
+    function finish(services){
+        if(!services || !services.length)
+            return Util.shellExec("docker-compose down");
+
+        return Util.eachSeries(services, (svc)=>{
+            var cmd = ["docker-compose stop", svc];
+
+            return Util.shellExec(cmd.join(' '))
+            .then(()=>{
+                console.log("getContainerByService")
+                return Util.getContainerByService(svc)
+            })
+            .then((containerName)=>{
+                var cmd = ["docker rm -f", containerName];
+
+                return Util.shellExec(cmd.join(' '))
+            })
+        })
     }
 })
 
@@ -52,6 +84,7 @@ program
 
     return promptContainer()
     .then(finish)
+    .catch(handleError);
 
     function finish(container){
         var cmd = "docker";
@@ -89,28 +122,25 @@ program
     .catch(handleError)
 })
 
+
 function promptServices(){
-    var yamlPath = Path.join(process.cwd(), "docker-compose.yaml");
+    return Util.getYAML()
+    .then((_yaml)=>{
+        yaml = _yaml;
 
-    if(!fs.existsSync(yamlPath))
-        return handleError("Missing YAML");
+        var allServices = Object.keys(yaml.services).map((s, index)=>{
+            return {name: s, value: index}
+        })
 
-    // convert YAML file to JSON
-    var yaml = YAML.load(yamlPath);
-
-    var allServices = Object.keys(yaml.services).map((s, index)=>{
-        return {name: s, value: index}
+        allServices.unshift({name: "All Services", value: -1});
+        // console.log();
+        return inquirer.prompt([{
+            message: "Select a service to run:",
+            type: "list",
+            name: "service",
+            choices : allServices
+        }])
     })
-
-    allServices.unshift({name: "All Services", value: -1});
-
-    // console.log();
-    return inquirer.prompt([{
-        message: "Select a service to run:",
-        type: "list",
-        name: "service",
-        choices : allServices
-    }])
     .then((answers)=>{
         if(answers.service === -1)
             return null;
@@ -118,7 +148,6 @@ function promptServices(){
         var service = _.find(allServices, {value: answers.service});
         return [service.name]
     })
-    .catch(handleError);
 }
 
 function promptContainer(){
@@ -141,8 +170,8 @@ function promptContainer(){
     .then((answers)=>{
         return answers.container;
     })
-    .catch(handleError)
 }
+
 
 function handleError(err){
     console.log("An error occured");
