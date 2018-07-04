@@ -1,5 +1,6 @@
 {
     "name": "friendly-docker",
+    "version": "0.0.1",
     "bin": {
         "fd": "bin/fd.js"
     },
