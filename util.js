@@ -21,6 +21,7 @@ module.exports = util;
 
 function shellExec(cmd){
     return new Promise((resolve, reject)=>{
+        console.log("Running:", cmd);
         nativeExec(cmd, {
             stdio: [0,1,2]
         }, (err, stdout, stderr)=>{
@@ -40,6 +41,7 @@ function shellExec(cmd){
 
 function shellExecFile(cmd, options){
     return new Promise((resolve, reject)=>{
+        console.log("Running:", cmd);
         var ouput = nativeExecFile(cmd, options, {stdio: 'inherit'});
         resolve(ouput);
     })

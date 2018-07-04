@@ -63,7 +63,6 @@ program
 
             return Util.shellExec(cmd.join(' '))
             .then(()=>{
-                console.log("getContainerByService")
                 return Util.getContainerByService(svc)
             })
             .then((containerName)=>{
@@ -124,11 +123,12 @@ program
 
 
 function promptServices(){
+    var allServices;
     return Util.getYAML()
     .then((_yaml)=>{
         yaml = _yaml;
 
-        var allServices = Object.keys(yaml.services).map((s, index)=>{
+        allServices = Object.keys(yaml.services).map((s, index)=>{
             return {name: s, value: index}
         })
 
