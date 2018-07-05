@@ -1,3 +1,3 @@
 #!/usr/bin/env node
 
-require('../').parse();
+require('../app/').parse();

@@ -4,49 +4,17 @@ const shell     = require('shelljs');
 const inquirer  = require('inquirer');
 const _         = require('lodash');
 
-var program     = require('vorpal')();
 var yaml        = null;
 
-global.Util     = require('./util.js');
-
 module.exports = {
-    parse : () => program.parse(process.argv),
+    down    : downAction,
+    ps      : psAction,
+    enter   : inAction,
+    up      : upAction,
+    test    : testAction,
 }
 
-// docker-compose up
-program
-.command('up [containers...]')
-.option('-a, --attach', 'Attach to container(s)')
-.action((args, cb)=>{
-    if(args.containers)
-        return finish(args.containers);
-
-    return promptServices()
-    .then(finish)
-    .catch(handleError);
-
-    function finish(services){
-        var cmd = ["docker-compose up"];
-
-        if(!args.options.attach)
-            cmd.push("-d");
-
-        if(services)
-            cmd.push(services.join(' '));
-
-        shell.exec(cmd.join(' '));
-    }
-
-    function handleError(err){
-        console.log("An error occured");
-        console.log(err);
-    }
-})
-
-// docker-compose down
-program
-.command('down [containers...]')
-.action((args, cb)=>{
+function downAction(args, cb){
     if(args.containers)
         return finish(args.containers);
 
@@ -72,12 +40,18 @@ program
             })
         })
     }
-})
+}
 
-// docker exec
-program
-.command('in [container]')
-.action((args, cb)=>{
+function psAction(args, cb){
+    Util.shellExec("docker ps")
+    .then((output)=>{
+        var list = Util.parsePS(output);
+        var formattedList = list.map((row)=>row.NAMES);
+        console.log(formattedList);
+    });
+}
+
+function inAction(args, cb){
     if(args.container)
         return finish(args.container);
 
@@ -90,24 +64,9 @@ program
         var options = ["exec", "-it", container, "bash"];
         Util.shellExecFile(cmd, options);
     }
-})
+}
 
-// docker ps
-program
-.command('ps')
-.action(()=>{
-    Util.shellExec("docker ps")
-    .then((output)=>{
-        var list = Util.parsePS(output);
-        var formattedList = list.map((row)=>row.NAMES);
-        console.log(formattedList);
-    });
-})
-
-// test
-program
-.command('test [mycommand]', 'Test command')
-.action(function(args, cb){
+function testAction(args, cb){
     inquirer.prompt([{
         message: "What's your first name?",
         type: "list",
@@ -119,7 +78,33 @@ program
         // Use user feedback for... whatever!!
     })
     .catch(handleError)
-})
+}
+
+function upAction(args, cb){
+    if(args.containers)
+        return finish(args.containers);
+
+    return promptServices()
+    .then(finish)
+    .catch(handleError);
+
+    function finish(services){
+        var cmd = ["docker-compose up"];
+
+        if(!args.options.attach)
+            cmd.push("-d");
+
+        if(services)
+            cmd.push(services.join(' '));
+
+        shell.exec(cmd.join(' '));
+    }
+
+    function handleError(err){
+        console.log("An error occured");
+        console.log(err);
+    }
+}
 
 
 function promptServices(){
